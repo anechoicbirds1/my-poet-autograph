@@ -7,31 +7,57 @@ function draw(){if(!photo)return;ctx.clearRect(0,0,baseWidth,baseHeight);ctx.dra
 async function loadPhoto(f){if(!f)return;if(!f.type.startsWith('image/')){setStatus('Please choose an image.');return}if(f.size>20*1024*1024){setStatus('Choose an image smaller than 20 MB.');return}let url=URL.createObjectURL(f),im=new Image();im.onload=()=>{photo=im;let scale=Math.min(1,1800/Math.max(im.width,im.height));baseWidth=Math.round(im.width*scale);baseHeight=Math.round(im.height*scale);canvas.width=baseWidth;canvas.height=baseHeight;stage.style.display='block';$('empty').style.display='none';strokes=[];current=null;draw();$('save').disabled=false;$('undo').disabled=false;$('clear').disabled=false;setStatus('Ready! Ask the performer to sign your photo.');URL.revokeObjectURL(url)};im.onerror=()=>setStatus('This image could not be opened. Try a JPEG or PNG.');im.src=url}
 file.addEventListener('change',()=>loadPhoto(file.files?.[0]));
 const cameraInput=document.getElementById('camera');
-document.getElementById('takePicture').addEventListener('click',()=>{cameraInput.value='';cameraInput.click();});
-cameraInput.addEventListener('change', async ()=>{
- const captured=cameraInput.files?.[0];
- if(!captured){setStatus('Camera returned no photo. Please try again.');return;}
- setStatus('Camera returned '+Math.round(captured.size/1024)+' KB. Reading photo…');
- try {
-   // Keep the input/file intact until the phone finishes reading it.
-   const buffer=await captured.arrayBuffer();
-   if(!buffer.byteLength)throw new Error('The camera returned an empty image.');
-   const blob=new Blob([buffer],{type:captured.type||'image/jpeg'});
-   const url=URL.createObjectURL(blob);
-   const im=new Image();
-   im.onload=()=>{
-     const w=im.naturalWidth||im.width,h=im.naturalHeight||im.height;
-     if(!w||!h){setStatus('The captured image has no usable dimensions.');URL.revokeObjectURL(url);return;}
-     photo=im;const scale=Math.min(1,1800/Math.max(w,h));
-     baseWidth=Math.max(1,Math.round(w*scale));baseHeight=Math.max(1,Math.round(h*scale));
-     canvas.width=baseWidth;canvas.height=baseHeight;stage.style.display='block';$('empty').style.display='none';
-     strokes=[];current=null;draw();$('save').disabled=false;$('undo').disabled=false;$('clear').disabled=false;
-     setStatus('Camera photo loaded! You can sign it or take another.');
-     cameraInput.value='';URL.revokeObjectURL(url);
-   };
-   im.onerror=()=>{setStatus('Camera photo could not be decoded ('+(captured.type||'unknown format')+'). Try JPEG/Most Compatible.');cameraInput.value='';URL.revokeObjectURL(url);};
-   im.src=url;
- }catch(err){setStatus('Camera read error: '+(err?.message||String(err)));cameraInput.value='';}
+const takeButton=document.getElementById('takePicture');
+let cameraPending=false;
+// Capture directly from a user gesture; do not clear the input while Android is returning.
+takeButton.addEventListener('click',()=>{
+  setStatus('Opening camera…');
+  cameraPending=true;
+  cameraInput.click();
+});
+window.addEventListener('pageshow',()=>{
+  if(cameraPending && !cameraInput.files?.length) setStatus('Returned to app; waiting for camera photo.');
+});
+async function handleCapturedFile(f){
+  if(!f){setStatus('Camera returned without a selected photo. Try again.');return;}
+  setStatus('Camera returned '+Math.round(f.size/1024)+' KB; opening photo…');
+  if(f.size===0){setStatus('Camera returned an empty photo.');return;}
+  if(f.size>30*1024*1024){setStatus('Camera photo is too large (over 30 MB).');return;}
+  const objectUrl=URL.createObjectURL(f);
+  const img=new Image();
+  try{
+    await new Promise((resolve,reject)=>{
+      img.onload=resolve;
+      img.onerror=()=>reject(new Error('Photo format could not be decoded'));
+      img.src=objectUrl;
+    });
+    const w=img.naturalWidth,h=img.naturalHeight;
+    if(!w||!h) throw new Error('Photo has no dimensions');
+    const scale=Math.min(1,1280/Math.max(w,h));
+    const newWidth=Math.max(1,Math.round(w*scale));
+    const newHeight=Math.max(1,Math.round(h*scale));
+    // Draw into a smaller canvas immediately to avoid retaining a large camera image.
+    const reduced=document.createElement('canvas');
+    reduced.width=newWidth; reduced.height=newHeight;
+    reduced.getContext('2d').drawImage(img,0,0,newWidth,newHeight);
+    photo=reduced;
+    baseWidth=newWidth;baseHeight=newHeight;
+    canvas.width=newWidth;canvas.height=newHeight;
+    stage.style.display='block';$('empty').style.display='none';
+    strokes=[];current=null;
+    draw();
+    $('save').disabled=false;$('undo').disabled=false;$('clear').disabled=false;
+    setStatus('Camera photo loaded! You can sign or take another picture.');
+  }catch(err){setStatus('Camera loading error: '+(err.message||String(err)));}
+  finally{URL.revokeObjectURL(objectUrl);cameraInput.value='';cameraPending=false;}
+}
+cameraInput.addEventListener('change',()=>{
+  const f=cameraInput.files?.[0];
+  handleCapturedFile(f).catch(err=>setStatus('Camera error: '+err.message));
+});
+cameraInput.addEventListener('cancel',()=>{
+  cameraPending=false;
+  setStatus('Camera was canceled or did not return a photo.');
 });
 function point(e){let r=canvas.getBoundingClientRect();return{x:(e.clientX-r.left)*baseWidth/r.width,y:(e.clientY-r.top)*baseHeight/r.height}}
 canvas.addEventListener('pointerdown',e=>{if(!photo)return;active=true;canvas.setPointerCapture(e.pointerId);current={color:$('ink').value,points:[point(e)]};draw()});canvas.addEventListener('pointermove',e=>{if(!active||!current)return;current.points.push(point(e));draw()});function finish(){if(current){strokes.push(current);current=null}active=false;draw()}canvas.addEventListener('pointerup',finish);canvas.addEventListener('pointercancel',finish);
