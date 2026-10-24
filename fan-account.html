@@ -21,7 +21,7 @@ function setMode(signup){isSignup=signup;$('heading').textContent=signup?'Create
 $('switch').addEventListener('click',()=>setMode(!isSignup));
 $('accountForm').addEventListener('submit',async e=>{e.preventDefault();$('submit').disabled=true;$('message').textContent='Please wait…';try{
 const email=$('email').value.trim(),password=$('password').value;
-if(isSignup){const full_name=$('fullName').value.trim();if(!full_name)throw Error('Please enter your name.');const {error}=await supabase.auth.signUp({email,password,options:{data:{full_name}}});if(error)throw error;$('message').textContent='Check your email for a confirmation link, if required, then return here to sign in.';}
+if(isSignup){const full_name=$('fullName').value.trim();if(!full_name)throw Error('Please enter your name.');const {error}=await supabase.auth.signUp({email,password,options:{data:{full_name},emailRedirectTo:'https://anechoicbirds1.github.io/my-poet-autograph/fan-account.html'}});if(error)throw error;$('message').textContent='Check your email for a confirmation link, if required, then return here to sign in.';}
 else{const {error}=await supabase.auth.signInWithPassword({email,password});if(error)throw error;$('message').textContent='Signed in.';}
 }catch(err){$('message').textContent=err.message||'Something went wrong.';}finally{$('submit').disabled=false;}});
 $('signOut').addEventListener('click',async()=>{const {error}=await supabase.auth.signOut();$('message').textContent=error?error.message:'Signed out.';});
