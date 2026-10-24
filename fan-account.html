@@ -17,6 +17,16 @@ import {createClient} from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2
 const supabase=createClient('https://ncakmtncvsribnkslsok.supabase.co','sb_publishable_mvOTUOQDUfWamS2CON_Hww_vWFTe2in');
 const $=id=>document.getElementById(id);let isSignup=true;
 function render(user){$('signedOut').classList.toggle('hidden',!!user);$('signedIn').classList.toggle('hidden',!user);$('accountEmail').textContent=user?.email||'';}
+async function ensureFan(user){
+ if(!user?.email || !user.email_confirmed_at)return;
+ const {data:existing,error:readError}=await supabase.from('fans').select('id').eq('auth_user_id',user.id).maybeSingle();
+ if(readError)throw readError;
+ if(existing)return;
+ const full_name=(user.user_metadata?.full_name||'Fan').trim().slice(0,120);
+ const {error}=await supabase.from('fans').insert({auth_user_id:user.id,email:user.email,full_name});
+ if(error && error.code!=='23505')throw error;
+}
+async function syncFan(user){if(!user)return;try{await ensureFan(user);}catch(e){$('message').textContent='Account is signed in, but profile setup needs attention: '+e.message;}}
 function setMode(signup){isSignup=signup;$('heading').textContent=signup?'Create your free account':'Sign in';$('nameField').classList.toggle('hidden',!signup);$('fullName').required=signup;$('submit').textContent=signup?'Create account':'Sign in';$('switch').textContent=signup?'Already have an account? Sign in':'Need an account? Register';$('password').autocomplete=signup?'new-password':'current-password';$('message').textContent='';}
 $('switch').addEventListener('click',()=>setMode(!isSignup));
 $('accountForm').addEventListener('submit',async e=>{e.preventDefault();$('submit').disabled=true;$('message').textContent='Please wait…';try{
@@ -25,6 +35,6 @@ if(isSignup){const full_name=$('fullName').value.trim();if(!full_name)throw Erro
 else{const {error}=await supabase.auth.signInWithPassword({email,password});if(error)throw error;$('message').textContent='Signed in.';}
 }catch(err){$('message').textContent=err.message||'Something went wrong.';}finally{$('submit').disabled=false;}});
 $('signOut').addEventListener('click',async()=>{const {error}=await supabase.auth.signOut();$('message').textContent=error?error.message:'Signed out.';});
-supabase.auth.onAuthStateChange((_event,session)=>render(session?.user||null));
-const {data:{user}}=await supabase.auth.getUser();render(user);
+supabase.auth.onAuthStateChange((_event,session)=>{render(session?.user||null);if(session?.user)setTimeout(()=>syncFan(session.user),0);});
+const {data:{user}}=await supabase.auth.getUser();render(user);await syncFan(user);
 </script></body></html>
