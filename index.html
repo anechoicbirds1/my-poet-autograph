@@ -51,9 +51,23 @@ async function handleCapturedFile(f){
   }catch(err){setStatus('Camera loading error: '+(err.message||String(err)));}
   finally{URL.revokeObjectURL(objectUrl);cameraInput.value='';cameraPending=false;}
 }
-cameraInput.addEventListener('change',()=>{
-  const f=cameraInput.files?.[0];
-  handleCapturedFile(f).catch(err=>setStatus('Camera error: '+err.message));
+let lastCameraFile=null;
+function receiveCameraFile(){
+ const f=cameraInput.files?.[0];
+ if(!f)return;
+ if(f===lastCameraFile)return;
+ lastCameraFile=f;
+ handleCapturedFile(f).catch(err=>setStatus('Camera error: '+err.message));
+}
+cameraInput.addEventListener('change',receiveCameraFile);
+cameraInput.addEventListener('input',receiveCameraFile);
+document.addEventListener('visibilitychange',()=>{
+ if(!document.hidden && cameraPending){
+   setTimeout(()=>{
+     if(cameraInput.files?.length)receiveCameraFile();
+     else if(cameraPending)setStatus('Camera returned, but Android did not send the picture. Try Choose Existing Photo; save the photo in your camera app first.');
+   },700);
+ }
 });
 cameraInput.addEventListener('cancel',()=>{
   cameraPending=false;
