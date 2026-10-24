@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Fan Account | My Poet Autograph</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#101018;color:#f8f7fc;font-family:system-ui,-apple-system,Segoe UI,sans-serif}main{max-width:500px;margin:5vh auto;padding:22px}.eyebrow{color:#ffb43b;letter-spacing:2px;font-size:12px;font-weight:800}.panel{background:#1c1b27;border:1px solid #393544;border-radius:18px;padding:22px;margin-top:20px}h1{margin:8px 0}p{color:#c9c5d4;line-height:1.5}label{display:block;margin:14px 0 5px}input{width:100%;padding:12px;border-radius:9px;border:1px solid #686175;background:#252331;color:#fff;font:inherit}button{border:0;border-radius:10px;background:#f1a42b;color:#19131b;padding:12px 16px;font-weight:750;cursor:pointer;margin-top:16px;min-height:44px}button.secondary{background:#343042;color:white;margin-left:8px}button:disabled{opacity:.5}#message{min-height:24px;color:#ffcb78}a{color:#ffcb78}.hidden{display:none}
+</style></head><body><main><div class="eyebrow">ANECHOIC BIRDS PRESENTS</div><h1>My Poet Autograph</h1><p>One free account for autographs, Who's Next? nominations, and Good Times photos.</p>
+<section class="panel" id="signedOut"><h2 id="heading">Create your free account</h2><form id="accountForm">
+<div id="nameField"><label for="fullName">Full name</label><input id="fullName" autocomplete="name" maxlength="120"></div>
+<label for="email">Email address</label><input id="email" type="email" autocomplete="email" required maxlength="254">
+<label for="password">Password</label><input id="password" type="password" autocomplete="new-password" minlength="8" required>
+<button id="submit" type="submit">Create account</button><button id="switch" class="secondary" type="button">Already have an account? Sign in</button>
+</form></section>
+<section class="panel hidden" id="signedIn"><h2>Welcome back!</h2><p>Your verified account email:</p><p><strong id="accountEmail"></strong></p><p>We'll use your account to autofill submissions when those features are connected.</p><button id="signOut" type="button">Sign out</button></section>
+<p id="message" role="status" aria-live="polite"></p><p><a href="./index.html">Back to the photo editor</a></p></main>
+<script type="module">
+import {createClient} from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.0/+esm';
+const supabase=createClient('https://ncakmtncvsribnkslsok.supabase.co','sb_publishable_mvOTUOQDUfWamS2CON_Hww_vWFTe2in');
+const $=id=>document.getElementById(id);let isSignup=true;
+function render(user){$('signedOut').classList.toggle('hidden',!!user);$('signedIn').classList.toggle('hidden',!user);$('accountEmail').textContent=user?.email||'';}
+function setMode(signup){isSignup=signup;$('heading').textContent=signup?'Create your free account':'Sign in';$('nameField').classList.toggle('hidden',!signup);$('fullName').required=signup;$('submit').textContent=signup?'Create account':'Sign in';$('switch').textContent=signup?'Already have an account? Sign in':'Need an account? Register';$('password').autocomplete=signup?'new-password':'current-password';$('message').textContent='';}
+$('switch').addEventListener('click',()=>setMode(!isSignup));
+$('accountForm').addEventListener('submit',async e=>{e.preventDefault();$('submit').disabled=true;$('message').textContent='Please wait…';try{
+const email=$('email').value.trim(),password=$('password').value;
+if(isSignup){const full_name=$('fullName').value.trim();if(!full_name)throw Error('Please enter your name.');const {error}=await supabase.auth.signUp({email,password,options:{data:{full_name}}});if(error)throw error;$('message').textContent='Check your email for a confirmation link, if required, then return here to sign in.';}
+else{const {error}=await supabase.auth.signInWithPassword({email,password});if(error)throw error;$('message').textContent='Signed in.';}
+}catch(err){$('message').textContent=err.message||'Something went wrong.';}finally{$('submit').disabled=false;}});
+$('signOut').addEventListener('click',async()=>{const {error}=await supabase.auth.signOut();$('message').textContent=error?error.message:'Signed out.';});
+supabase.auth.onAuthStateChange((_event,session)=>render(session?.user||null));
+const {data:{user}}=await supabase.auth.getUser();render(user);
+</script></body></html>
