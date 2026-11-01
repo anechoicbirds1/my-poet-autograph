@@ -5,6 +5,23 @@ const msg=document.getElementById('msg'),manager=document.getElementById('manage
 const {data:{user}}=await sb.auth.getUser();
 if(!user){say('Please sign in with your administrator account on the Fan Account page first.');}
 else{const {data:admin,error}=await sb.from('admin_accounts').select('auth_user_id').eq('auth_user_id',user.id).maybeSingle();if(error||!admin){say('This page is available to Anechoic Birds administrators only.');}else{manager.hidden=false;await load();}}
+async function preparePromoImage(file){
+ const allowed=['image/jpeg','image/png','image/webp'];
+ if(!allowed.includes(file.type))throw new Error('Choose a JPG, PNG or WebP image.');
+ if(file.size<=5242880)return file;
+ const bitmap=await createImageBitmap(file);
+ try{
+  let scale=Math.min(1,2000/Math.max(bitmap.width,bitmap.height));
+  for(let attempt=0;attempt<5;attempt++){
+   const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(bitmap.width*scale));canvas.height=Math.max(1,Math.round(bitmap.height*scale));
+   const ctx=canvas.getContext('2d');ctx.drawImage(bitmap,0,0,canvas.width,canvas.height);
+   const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',Math.max(.58,.88-attempt*.08)));
+   if(blob&&blob.size<=5242880)return new File([blob],file.name.replace(/\\.[^.]+$/,'')+'-optimized.jpg',{type:'image/jpeg'});
+   scale*=.72;
+  }
+  throw new Error('Could not reduce this photo. Please try a smaller image.');
+ }finally{bitmap.close();}
+}
 async function load(){
  const [artistsResult,profilesResult]=await Promise.all([sb.from('artists').select('id,display_name,is_visible').order('display_name'),sb.from('artist_promo_profiles').select('artist_id,contact_email,photo_path')]);
  if(artistsResult.error){say(artistsResult.error.message);return;}
@@ -19,7 +36,7 @@ async function load(){
   const fields=document.createElement('div');fields.className='promo-fields';
   const emailLabel=document.createElement('label');emailLabel.textContent='Private artist email';
   const email=document.createElement('input');email.type='email';email.placeholder='artist@example.com';email.value=profile.contact_email||'';email.autocomplete='off';emailLabel.append(email);
-  const fileLabel=document.createElement('label');fileLabel.textContent='Promotional photo (JPG, PNG or WebP; max 5 MB)';
+  const fileLabel=document.createElement('label');fileLabel.textContent='Promotional photo (JPG, PNG or WebP; large photos resized automatically)';
   const photo=document.createElement('input');photo.type='file';photo.accept='image/jpeg,image/png,image/webp';photo.className='photo-input';photo.id='artist-photo-'+a.id;const picker=document.createElement('button');picker.type='button';picker.className='photo-picker';picker.textContent='📷 Choose Photo';const filename=document.createElement('span');filename.className='photo-filename';filename.textContent=profile.photo_path?'Current photo saved — choose to replace':'No photo selected';picker.onclick=()=>photo.click();photo.onchange=()=>{filename.textContent=photo.files?.[0]?.name||'No photo selected';};fileLabel.append(picker,photo,filename);
   fields.append(emailLabel,fileLabel);
   if(profile.photo_path){const preview=document.createElement('img');preview.alt='Current promotional photo for '+a.display_name;preview.src=sb.storage.from('artist-promos').getPublicUrl(profile.photo_path).data.publicUrl;fields.append(preview);}
@@ -28,14 +45,16 @@ async function load(){
    const updated=name.value.trim(),address=email.value.trim().toLowerCase(),image=photo.files?.[0];
    if(!updated){say('Artist name cannot be empty.');return;}
    if(address&&!email.checkValidity()){say('Enter a valid artist email.');return;}
-   if(image&&(!['image/jpeg','image/png','image/webp'].includes(image.type)||image.size>5242880)){say('Choose a JPG, PNG or WebP under 5 MB.');return;}
+   if(image&&!['image/jpeg','image/png','image/webp'].includes(image.type)){say('Choose a JPG, PNG or WebP image.');return;}
    save.disabled=true;save.textContent='Saving…';say('Saving '+updated+'…');
    try{
     let path=profile.photo_path||null;
     if(image){
-     const ext=image.type==='image/png'?'png':image.type==='image/webp'?'webp':'jpg';
+     if(image.size>5242880)say('Optimizing '+updated+' photo before upload…');
+     const prepared=await preparePromoImage(image);
+     const ext=prepared.type==='image/png'?'png':prepared.type==='image/webp'?'webp':'jpg';
      path=a.id+'/'+crypto.randomUUID()+'.'+ext;
-     const upload=await sb.storage.from('artist-promos').upload(path,image,{contentType:image.type,upsert:false});
+     const upload=await sb.storage.from('artist-promos').upload(path,prepared,{contentType:prepared.type,upsert:false});
      if(upload.error)throw upload.error;
     }
     const up=await sb.from('artists').update({display_name:updated,is_visible:toggle.checked}).eq('id',a.id);
