@@ -14,7 +14,7 @@ async function load(){
    const card=document.createElement('article'),title=document.createElement('h2'),status=document.createElement('small'),img=document.createElement('img'),caption=document.createElement('textarea'),save=document.createElement('button'),ready=document.createElement('button'),publish=document.createElement('button'),autoPublish=document.createElement('button'),postUrl=document.createElement('input'),feedback=document.createElement('p');
    let currentStatus=item.status,busy=false;
    title.textContent='Autograph with '+item.artist_name;
-   caption.value=item.caption||'A moment worth remembering! ✍️ Thank you for celebrating poetry with Anechoic Birds. Your Voice Matters. https://anechoicbirds.com';
+   caption.value=item.caption||"✍️🔥 The \"My Poet Autograph\" Challenge Begins! 🔥✍️\n\nCan you collect all 17 I Am The Poet artist signatures? 🎤📖\n\nThe challenge is on! Meet the artists, collect their signatures, and see how many you can get!\n\n👕 SPECIAL REWARDS! Fans who collect signatures while wearing their official I Am The Poet shirt or hoodie may qualify for special rewards! 🎁\n\nAre you ready to take on the challenge?\n\n🌐 https://anechoicbirds.com\n\nYour Voice Matters. Your Autograph Collection Matters.\n\n#MyPoetAutograph #IAmThePoet #AnechoicBirds #PoetryChallenge #YourVoiceMatters";
    caption.setAttribute('aria-label','Facebook post caption for '+item.artist_name);
    save.textContent='Save Draft';ready.textContent='Mark Ready';publish.textContent='Record Published Post';autoPublish.textContent='Publish to Facebook';
    postUrl.type='url';postUrl.placeholder='Paste published Facebook post URL';postUrl.value=item.facebook_post_url||'';postUrl.style.cssText='display:block;width:95%;padding:12px;margin:12px 0';
